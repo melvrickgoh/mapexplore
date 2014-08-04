@@ -1,0 +1,1113 @@
+<head>
+  <title>maps</title>
+	<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+	<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+	<script type="text/javascript" src="http://code.jquery.com/ui/1.10.4/jquery-ui.js"></script>
+	<script>
+		  window.fbAsyncInit = function() {
+			FB.init({
+			  appId      : '{829928090368832}',
+			  xfbml      : true,
+			  version    : 'v2.0'
+			});
+		  };
+
+		  (function(d, s, id){
+			 var js, fjs = d.getElementsByTagName(s)[0];
+			 if (d.getElementById(id)) {return;}
+			 js = d.createElement(s); js.id = id;
+			 //js.src = "//connect.facebook.net/en_US/sdk/debug.js"
+			 js.src = "//connect.facebook.net/en_US/sdk.js";
+			 fjs.parentNode.insertBefore(js, fjs);
+		   }(document, 'script', 'facebook-jssdk'));
+    </script>
+	<script src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript"
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA8lowWne_PVvQZyZ9I_mLxRgk_s6x24fk&sensor=true&libraries=places,weather">
+    </script>
+
+    <script type="text/javascript">
+		var map, geocoder,marker,directionsDisplay,elevator,chart,polyline;
+		var infowindow = new google.maps.InfoWindow();
+		var directionsService = new google.maps.DirectionsService();
+		
+		function codeAddress() {
+		  var address = document.getElementById('address').value;
+		  geocoder.geocode( { 'address': address}, function(results, status) {
+			if (status == google.maps.GeocoderStatus.OK) {
+			  map.setCenter(results[0].geometry.location);
+			  var marker = new google.maps.Marker({
+				  map: map,
+				  position: results[0].geometry.location
+			  });
+			} else {
+			  alert('Geocode was not successful for the following reason: ' + status);
+			}
+		  });
+		}
+		
+		function codeLatLng() {
+		  var input = document.getElementById('latlng').value;
+		  var latlngStr = input.split(',', 2);
+		  var lat = parseFloat(latlngStr[0]);
+		  var lng = parseFloat(latlngStr[1]);
+		  var latlng = new google.maps.LatLng(lat, lng);
+		  geocoder.geocode({'latLng': latlng}, function(results, status) {
+			if (status == google.maps.GeocoderStatus.OK) {
+			  if (results[1]) {
+				map.setZoom(11);
+				marker = new google.maps.Marker({
+					position: latlng,
+					map: map
+				});
+				infowindow.setContent(results[1].formatted_address);
+				infowindow.open(map, marker);
+			  } else {
+				alert('No results found');
+			  }
+			} else {
+			  alert('Geocoder failed due to: ' + status);
+			}
+		  });
+		}
+	
+	function initialize(){
+		initializeBasicMap();
+		initializeGoogleDirections();
+		initializeElevation();
+		initializePlacesLibrary();
+	}
+	
+      function initializeBasicMap() {
+		var styles = [
+			{
+			  stylers: [
+				{ hue: "#00ffe6" },
+				{ saturation: -20 }
+			  ]
+			},{
+			  featureType: "road",
+			  elementType: "geometry",
+			  stylers: [
+				{ lightness: 100 },
+				{ visibility: "simplified" }
+			  ]
+			},{
+			  featureType: "road",
+			  elementType: "labels",
+			  stylers: [
+				{ visibility: "off" }
+			  ]
+			}
+		];
+		
+		var styledMap = new google.maps.StyledMapType(styles,{name: "Styled Map"});
+		
+		//geo coding
+		geocoder = new google.maps.Geocoder();
+		
+        var mapOptions = {
+			zoom: 4,
+			center: new google.maps.LatLng(-28, 137.883),
+			mapTypeControl: true,
+			mapTypeControlOptions: {
+				style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
+				position: google.maps.ControlPosition.BOTTOM_CENTER,
+				mapTypeIds: [google.maps.MapTypeId.ROADMAP,google.maps.MapTypeId.SATELLITE, google.maps.MapTypeId.HYBRID,google.maps.MapTypeId.TERRAIN, 'map_style']
+			},
+			panControl: true,
+			panControlOptions: {
+				position: google.maps.ControlPosition.TOP_RIGHT
+			},
+			zoomControl: true,
+			zoomControlOptions: {
+				style: google.maps.ZoomControlStyle.LARGE,
+				position: google.maps.ControlPosition.LEFT_CENTER
+			},
+			scaleControl: true,  // fixed to BOTTOM_RIGHT
+			streetViewControl: true,
+			streetViewControlOptions: {
+				position: google.maps.ControlPosition.LEFT_TOP
+			}
+		}
+        map = new google.maps.Map(document.getElementsByClassName("map-screen")[0],mapOptions);
+			
+		//Associate the styled map with the MapTypeId and set it to display.
+		map.mapTypes.set('map_style', styledMap);
+		map.setMapTypeId('map_style');
+		
+		map.data.loadGeoJson('https://storage.googleapis.com/maps-devrel/google.json');
+
+		// Color each letter gray. Change the color when the isColorful property
+		  // is set to true.
+		  map.data.setStyle(function(feature) {
+			var color = 'gray';
+			if (feature.getProperty('isColorful')) {
+			  color = feature.getProperty('color');
+			}
+			return {
+			  fillColor: color,
+			  strokeColor: color,
+			  strokeWeight: 2
+			};
+		  });
+
+		  // When the user clicks, set 'isColorful', changing the color of the letters.
+		  map.data.addListener('click', function(event) {
+			event.feature.setProperty('isColorful', true);
+		  });
+
+		  // When the user hovers, tempt them to click by outlining the letters.
+		  // Call revertStyle() to remove all overrides. This will use the style rules
+		  // defined in the function passed to setStyle()
+		  map.data.addListener('mouseover', function(event) {
+			map.data.revertStyle();
+			map.data.overrideStyle(event.feature, {strokeWeight: 8});
+		  });
+
+		  map.data.addListener('mouseout', function(event) {
+			map.data.revertStyle();
+		  });
+      }
+
+	function getFBToken(){
+		return Meteor.user().services.facebook.accessToken;
+	}
+		
+		function xhrRequest(req,callback){
+			var xmlhttp = new XMLHttpRequest();
+			xmlhttp.onreadystatechange=function()
+			  {
+			  if (xmlhttp.readyState==4 && xmlhttp.status==200) {
+					callback(xmlhttp.responseText);
+				}
+			  }
+			xmlhttp.open("GET",req,true);
+			xmlhttp.send();
+		}
+		
+		function output(jsonOutputID,inp) {
+			var child = document.createElement('pre');
+			child.innerHTML = inp;
+			document.getElementById(jsonOutputID).appendChild(child);//appendChild(document.createElement('pre')).innerHTML = inp;
+		}
+
+		function syntaxHighlight(json) {
+			json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+			return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+				var cls = 'number';
+				if (/^"/.test(match)) {
+					if (/:$/.test(match)) {
+						cls = 'key';
+					} else {
+						cls = 'string';
+					}
+				} else if (/true|false/.test(match)) {
+					cls = 'boolean';
+				} else if (/null/.test(match)) {
+					cls = 'null';
+				}
+				return '<span class="' + cls + '">' + match + '</span>';
+			});
+		}
+	
+		google.maps.event.addDomListener(window, 'load', initialize);
+		
+		var currentLocation;
+		
+		function getPosition(p){
+			currentLocation =  {
+				lat: p.coords.latitude,
+				lng: p.coords.longitude
+			}
+		}
+		
+		function getCurrentLocation(){
+			if (navigator.geolocation){
+				navigator.geolocation.watchPosition(getPosition);
+			}
+		}
+		
+		getCurrentLocation();
+    </script>
+	
+	<script type="text/javascript" >
+		var witAppKey = '5GH4FQS4YQLZNVKRHQURSRFBMWC4XQ2E';
+		var apis = {
+			'four-square' : {
+				clientID: 'KCWOPUJ5UQRT5GOTEZJL2BR13A4Y3O3YUZQQJFWGBGSPQ0ZB',
+				clientSecret: 'S4FTOP35ATA02XX5YGOIWZWBEI52HIOSUZYWGWXRWY4GMW14',
+				api: 'four-square',
+				version: '20140510',
+				mapper: {
+					latlng : 'll',
+					latlngConverter: function(lat,lon){
+						return lat + ',' + lon;
+					},
+					geoCode: 'near',
+					query: 'query',
+					resultsLimit: 'limit',
+					intent: 'intent',
+					radius: 'radius',//max 100 000
+					intentOptions: {
+						placeSearch : 'match', //highly sensitive four square search
+						globalSearch: 'global'
+					},
+					apiTypeParsers: {
+						explore: {
+							resultMap : { //from recommendation object
+								id: function(e){
+										return e.venue.id;
+									},
+								name : function(e){
+									return e.venue.name;
+									},
+								address : function(e){
+									return e.venue.location.address;
+									},
+								contact: function(e){
+										if (e.venue.contact){
+											return e.venue.contact.formattedPhone;
+										}else{
+											return;
+										}
+									},
+								hours: function(e){
+										if (e.venue.hours){
+											return e.venue.hours.status;
+										}else{
+											return;
+										}
+									},
+								lat : function(e){
+										return e.venue.location.lat;
+									},
+								lng : function(e){
+										return e.venue.location.lng;
+									},
+								likes : function(e){
+										return e.venue.likes.count;
+									},
+								comments : function(e){
+										var tips = e.tips;
+										var comments = [];
+										for (var i in tips){
+											var tip = tips[i];
+											comments.push({
+												id : tip.id,
+												comment : tip.text,
+												username : tip.user.firstName + ' ' + tip.user.lastName,
+												photo : tip.user.photo.prefix + '' + tip.user.photo.suffix
+											});
+										}
+										return comments;
+									},
+								photos: function(e){
+									return e.venue.photos;
+								},
+								website: function(e){
+									return e.venue.url;
+								},
+								checkIns : function(e){
+										return e.venue.stats.checkinsCount;
+									},
+								collatedReccommendation : function(e){
+										return {
+											id: this.id(e),
+											name: this.name(e),
+											address: this.address(e),
+											contact: this.contact(e),
+											hours: this.hours(e),
+											lat: this.lat(e),
+											lng: this.lng(e),
+											likes: this.likes(e),
+											comments: this.comments(e),
+											checkIns: this.checkIns(e),
+											photos: this.photos(e),
+											website: this.website(e),
+											source: 'Four Square'
+										};
+									}
+							},
+							getReccommendations : function(baseObject){
+								var reccommendations = baseObject.response.groups[0].items;
+								console.log(baseObject);
+								var list = [];
+								for (var key in reccommendations){
+									var r = reccommendations[key];
+									list.push(this.resultMap.collatedReccommendation(r));
+								}
+								console.log('four-square reccommendations called');
+								return list;
+							}
+						},
+						search: {
+							resultMap: {
+								id: function(e){
+										return e.id;
+									},
+								name : function(e){
+									return e.name;
+									},
+								address : function(e){
+									return e.location.address;
+									},
+								contact: function(e){
+										if (e.contact){
+											return e.contact.formattedPhone;
+										}else{
+											return;
+										}
+									},
+								hours: function(e){
+										return;
+									},
+								lat : function(e){
+										return e.location.lat;
+									},
+								lng : function(e){
+										return e.location.lng;
+									},
+								likes : function(e){
+										return;
+									},
+								comments : function(e){
+										return [];
+									},
+								checkIns : function(e){
+										return e.stats.checkinsCount;
+									},
+								photos: function(e){
+									if (e.venue){
+										return e.venue.photos;
+									}else{
+										return;
+									}
+								},
+								website: function(e){
+									if (e.venue){
+										return e.venue.url;
+									}else{
+										return;
+									}
+								},
+								collatedReccommendation : function(e){
+										return {
+											id: this.id(e),
+											name: this.name(e),
+											address: this.address(e),
+											contact: this.contact(e),
+											hours: this.hours(e),
+											lat: this.lat(e),
+											lng: this.lng(e),
+											likes: this.likes(e),
+											comments: this.comments(e),
+											checkIns: this.checkIns(e),
+											photos: this.photos(e),
+											website: this.website(e),
+											source: 'Four Square'
+										};
+									}
+							},
+							getReccommendations : function(baseObject){
+								var reccommendations = baseObject.response.venues;
+								var list = [];
+								for (var key in reccommendations){
+									var r = reccommendations[key];
+									list.push(this.resultMap.collatedReccommendation(r));
+								}
+								return list;
+							}
+						}
+					}
+				},
+				searchRequest: function(nearOrLL,intentType,witObject){
+					switch (intentType){
+						case 'food_intent':
+							var options = {
+								section: 'food',
+								query: this.arrayToString(witObject,witObject.outcome.entities.food)
+							};
+							if (nearOrLL){
+								options['near'] = witObject.outcome.entities.location.value;
+							}else{
+								options['ll'] = witObject.outcome.entities.location.value;
+								witObject.outcome.entities.location = undefined;
+							}
+							return {
+								service: this.api,
+								type: 'explore',
+								request: this.generateRequest('explore',options)
+							}
+							break;
+						case 'accommodation_intent':
+							var options = {
+								query: this.arrayToString(witObject,witObject.outcome.entities.accommodation)
+							};
+							if (nearOrLL){
+								options['near'] = witObject.outcome.entities.location.value;
+							}else{
+								options['ll'] = witObject.outcome.entities.location.value;
+								witObject.outcome.entities.location = undefined;
+							}
+							return {
+								service: this.api,
+								type: 'search',
+								request: this.generateRequest('search',options)
+							}
+							break;
+						default:
+							console.log('default search');
+							break;
+					}
+				},
+				generateRequest: function(type,options){
+					var optionsString = ''
+					for (var key in options){
+						optionsString += key + '=' + options[key] + '&';
+					}
+					return 'https://api.foursquare.com/v2/venues/' + type + '?' + optionsString + 'client_id=' + this.clientID + '&client_secret=' + this.clientSecret + '&v=' + this.version;
+				},
+				arrayToString: function (witObject,array){
+					if (array){
+						var queryString = '';
+						if (array instanceof Array){
+							for (var key in array){
+								queryString += array[key].value + ' ';
+							}
+						}else{
+							queryString = array.value;
+						}
+						
+						return queryString.trim();
+					}else{
+						var locationArr = witObject.outcome.entities.location.value.split(/\s+/);
+						return tokenizeAndIsolateQuery(witObject.msg_body,locationArr);
+					}
+				}
+			},
+			'google': {
+				key: 'AIzaSyA8lowWne_PVvQZyZ9I_mLxRgk_s6x24fk',
+				api: 'google',
+				mapper: {
+					service: new google.maps.places.PlacesService(map),
+					latlng : 'location',
+					latlngConverter: function(lat,lon){
+						return new google.maps.LatLng(lat,lon);
+					},
+					query: 'query',
+					openNow: 'openNow', //boolean filter
+					radius: 'radius',// max 50000
+					minPrice: 'minPriceLevel',//0
+					maxPrice: 'maxPriceLevel',//4
+					types: 'types',
+					apiTypeParsers: {
+						places_library: {
+							resultMap : { //from recommendation object
+								id: function(e){
+										return e.id;
+									},
+								name : function(e){
+									return e.name;
+									},
+								address : function(e){
+									return e.formatted_address;
+									},
+								contact: function(e){
+										return e.formatted_phone_number;
+									},
+								hours: function(e){
+										if (e.opening_hours){
+											return e.opening_hours.open_now;
+										}else{
+											return;
+										}
+									},
+								lat : function(e){
+										return e.geometry.location.lat;
+									},
+								lng : function(e){
+										return e.geometry.location.lng;
+									},
+								likes : function(e){
+										return;
+									},
+								website: function(e){
+										return e.website;
+									},
+								comments : function(e){
+										var reviews = e.reviews;
+										var comments = [];
+										for (var i in reviews){
+											var review = reviews[i];
+											comments.push({
+												id : review.author_url,
+												comment : review.text,
+												username : review.author_name,
+												photo : undefined
+											});
+										}
+										return comments;
+									},
+								photos: function(e){
+									return e.photos;
+									},
+								checkIns : function(e){
+										return;
+									},
+								collatedReccommendation : function(e){
+										return {
+											id: this.id(e),
+											name: this.name(e),
+											address: this.address(e),
+											contact: this.contact(e),
+											hours: this.hours(e),
+											lat: this.lat(e),
+											lng: this.lng(e),
+											likes: this.likes(e),
+											comments: this.comments(e),
+											checkIns: this.checkIns(e),
+											website: this.website(e),
+											photos: this.photos(e),
+											source: 'Google'
+										};
+									}
+							},
+							getReccommendations : function(baseObject,status){
+								var reccommendations = baseObject;
+								var list = [];
+								if (status == 'OK'){
+									for (var key in reccommendations){
+										var r = reccommendations[key];
+										list.push(googleResultMapper.collatedReccommendation(r));
+									}
+								}
+								console.log(list);
+								federatedPrint(list);
+								return list;
+							}
+						}
+					},
+					fireRequest: function(reqObj){
+						var service = new google.maps.places.PlacesService(map);
+						googleResultMapper = this['apiTypeParsers'][reqObj.type]['resultMap'];
+						return service.textSearch(reqObj.request,this['apiTypeParsers'][reqObj.type].getReccommendations);
+					}
+				},
+				searchRequest: function(nearOrLL,intentType,witObject){
+					var msg = witObject.msg_body;
+					var request = {};
+					request[this.mapper.query] = msg;
+					var location;
+					if (!nearOrLL){
+						location = new google.maps.LatLng(currentLocation.lat,currentLocation.lng);
+						request[this.mapper.latlng] = location;
+						request[this.mapper.radius] = 10000;
+					}
+					switch (intentType){
+						case 'food_intent':
+							request[this.mapper.types] = ['food','cafe','restaurant','meal_delivery','meal_takeaway'];
+							break;
+						default:
+							break;
+					}
+					return {
+						service: this.api,
+						type: 'places_library',
+						request: request
+					}
+				}
+			},
+			facebook: {
+				key: '',
+				api: 'places',
+				mapper: {
+					latlng : 'center',
+					latlngConverter: function(lat,lon){
+						return lat+','+lon;
+					},
+					query: 'q',
+					radius: 'distance',//max 1000
+					apiTypeParsers: {
+						place: {
+							resultMap : { //from recommendation object
+								id: function(e){
+										return e.id;
+									},
+								name : function(e){
+									return e.name;
+									},
+								address : function(e){
+									return e.location.street + ',' + e.location.city;
+									},
+								contact: function(e){
+										return;
+									},
+								hours: function(e){
+										return;
+									},
+								lat : function(e){
+										return e.location.latitude;
+									},
+								lng : function(e){
+										return e.location.longitude;
+									},
+								likes : function(e){
+										return;
+									},
+								website: function(e){
+										return;
+									},
+								comments : function(e){
+										return;
+									},
+								photos: function(e){
+									return;
+									},
+								checkIns : function(e){
+										return;
+									},
+								collatedReccommendation : function(e){
+										return {
+											id: this.id(e),
+											name: this.name(e),
+											address: this.address(e),
+											contact: this.contact(e),
+											hours: this.hours(e),
+											lat: this.lat(e),
+											lng: this.lng(e),
+											likes: this.likes(e),
+											comments: this.comments(e),
+											checkIns: this.checkIns(e),
+											website: this.website(e),
+											photos: this.photos(e),
+											source: 'Facebook'
+										};
+									}
+							},
+							getReccommendations : function(baseObject,status){
+								var reccommendations = baseObject.data;
+								var list = [];
+								for (var key in reccommendations){
+									var r = reccommendations[key];
+									list.push(this.resultMap.collatedReccommendation(r));
+								}
+								return list;
+							}
+						}
+					}
+				},
+				searchRequest: function(nearOrLL,intentType,witObject){
+					this.key = getFBToken();
+					var options = {};
+					switch (intentType){
+						case 'food_intent':
+							if (nearOrLL){
+								options[this.mapper.query] = witObject.msg_body;
+							}else{
+								options[this.mapper.query] = this.arrayToString(witObject,witObject.outcome.entities.food);
+								options[this.mapper.latlng] = witObject.outcome.entities.location.value;
+								options[this.mapper.radius] = 1000;
+								witObject.outcome.entities.location = undefined;
+							}
+							return {
+								service: this.api,
+								type: 'place',
+								request: this.generateRequest('place',options)
+							}
+							break;
+						case 'accommodation_intent':
+							if (nearOrLL){
+								options[this.mapper.query] = witObject.msg_body;
+							}else{
+								options[this.mapper.query] = this.arrayToString(witObject,witObject.outcome.entities.accommodation);
+								options[this.mapper.latlng] = witObject.outcome.entities.location.value;
+								options[this.mapper.radius] = 1000;
+								witObject.outcome.entities.location = undefined;
+							}
+							return {
+								service: this.api,
+								type: 'place',
+								request: this.generateRequest('place',options)
+							}
+							break;
+						default:
+							console.log('default search');
+							break;
+					}
+				},
+				generateRequest: function(type,options){
+					var optionsString = ''
+					for (var key in options){
+						optionsString += key + '=' + options[key] + '&';
+					}
+					return 'https://graph.facebook.com/search?type=' + type + '&' + optionsString + '&access_token=' + this.key;
+				},
+				arrayToString: function (witObject,array){
+					if (array){
+						var queryString = '';
+						if (array instanceof Array){
+							for (var key in array){
+								queryString += array[key].value + ' ';
+							}
+						}else{
+							queryString = array.value;
+						}
+						
+						return queryString.trim();
+					}else{
+						var locationArr = witObject.outcome.entities.location.value.split(/\s+/);
+						return tokenizeAndIsolateQuery(witObject.msg_body,locationArr);
+					}
+				}
+			}
+		};
+		
+		var intents = {
+			'accommodation_intent' : {
+				purpose: 'accommodation search',
+				action: function(witResponse){
+					for (var i in apis){
+						var api = apis[i];
+						if (witResponse.outcome.entities.location){
+							console.log(witResponse.outcome.intent);
+							var generatedRequest = api.searchRequest(true,witResponse.outcome.intent,witResponse);
+							console.log(generatedRequest);
+							var request = generatedRequest.request;
+							var searchType = generatedRequest.type;
+							var apiName = generatedRequest.service;
+							if (apiName == 'google'){
+								api['mapper'].fireRequest(generatedRequest);
+							}else{
+								fireRequest(request,function(response){
+									var list = api['mapper']['apiTypeParsers'][searchType].getReccommendations(JSON.parse(response));
+									console.log(list);
+									federatedPrint(list);
+								});
+							}
+						}else{
+							getCurrentLocation();
+							witResponse.outcome.entities.location = {};
+							witResponse.outcome.entities.location.value = currentLocation.lat + ',' +currentLocation.lng;
+							var generatedRequest = api.searchRequest(false,witResponse.outcome.intent,witResponse);
+							var request = generatedRequest.request;
+							var searchType = generatedRequest.type;
+							var apiName = generatedRequest.service;
+							if (apiName == 'google'){
+								api['mapper'].fireRequest(generatedRequest);
+							}else{
+								fireRequest(request,function(response){
+									var list = api['mapper']['apiTypeParsers'][searchType].getReccommendations(JSON.parse(response));
+									console.log(list);
+									federatedPrint(list);
+								});
+							}
+						}
+					}
+				}
+			},
+			'location_intent' : {
+				purpose: 'location search',
+				action: function(){
+					
+				}
+			},
+			'food_intent' : {
+				purpose: 'food search',
+				action: function(witResponse){
+					for (var i in apis){
+						var api = apis[i];
+						if (witResponse.outcome.entities.location){
+							var generatedRequest = api.searchRequest(true,witResponse.outcome.intent,witResponse);
+							var request = generatedRequest.request;
+							var searchType = generatedRequest.type;
+							var apiName = generatedRequest.service;
+							if (apiName == 'google'){
+								console.log('google fired');
+								api['mapper'].fireRequest(generatedRequest);
+							}else{
+								console.log('google not fired');
+								fireRequest(request,function(response){
+									var list = api['mapper']['apiTypeParsers'][searchType].getReccommendations(JSON.parse(response));
+									console.log(list);
+									federatedPrint(list,witResponse.autocomplete);
+								});
+							}
+						}else{
+							getCurrentLocation();
+							witResponse.outcome.entities.location = {};
+							witResponse.outcome.entities.location.value = currentLocation.lat + ',' +currentLocation.lng;
+							var generatedRequest = api.searchRequest(false,witResponse.outcome.intent,witResponse);
+							var request = generatedRequest.request;
+							var searchType = generatedRequest.type;
+							var apiName = generatedRequest.service;
+							if (apiName == 'google'){
+								console.log('google no location fired');
+								api['mapper'].fireRequest(generatedRequest);
+							}else{
+								console.log('google no location not fired');
+								fireRequest(request,function(response){
+									var list = api['mapper']['apiTypeParsers'][searchType].getReccommendations(JSON.parse(response));
+									console.log(list);
+									console.log(witResponse.autocomplete);
+									federatedPrint(list,witResponse.autocomplete);
+								});
+							}
+						}
+					}
+				}
+			}
+		};
+		
+		function setWitHeader(xhr){
+			xhr.setRequestHeader('Authorization','Bearer 5GH4FQS4YQLZNVKRHQURSRFBMWC4XQ2E');
+			xhr.setRequestHeader('Accent','application/vnd.wit.YYYYMMDD');
+			return xhr;
+		}
+		
+		function tokenize(inp){
+			return inp.trim().split(/\s+/);
+		}
+		
+		function tokenizeAndIsolateQuery(inp, unwantedArr){
+			var tokens = tokenize(inp);
+			var wantedItems = tokens.filter(function ( elem ) {
+				return unwantedArr.indexOf( elem ) === -1;
+			}); 
+			return wantedItems.join(' ');
+		}
+		
+		function getPredicates(array,item){
+			var index = array.indexOf(item);
+			if (index == -1){
+				return undefined;
+			}else{
+				return array.slice(0,index);
+			}
+		}
+		
+		function federatedSearch(search,httpResponse,autoCompleteResp){
+			var witResponse = JSON.parse(httpResponse);
+			var confidence = witResponse.outcome.confidence;
+			var intent = witResponse.outcome.intent;
+			witResponse.autocomplete = autoCompleteResp;
+			console.log(witResponse.autocomplete);
+			var locationEntities = [];
+			var intentEntities = [];
+			if (confidence>0.5){
+				intents[intent].action(witResponse);
+			}else{
+			
+			}
+		}
+		
+		function federation(autoCompleteResp){
+			var $query = $('#federatedSearch').val();
+			fireWitRequest($query,function(search,response){
+				console.log(autoCompleteResp);
+				federatedSearch(search,response,autoCompleteResp);
+			});
+		}
+		
+		function fireWitRequest(search,callback){
+			var xmlhttp = new XMLHttpRequest();
+			var request = 'https://api.wit.ai/message?access_token=' + witAppKey + '&q=' + search;
+			xmlhttp.onreadystatechange=function()
+			  {
+			  if (xmlhttp.readyState==4 && xmlhttp.status==200)
+				{
+					console.log(xmlhttp.response);
+					callback(search,xmlhttp.response);
+				}
+			  }
+			xmlhttp.open("GET",request,true);
+			xmlhttp.send();
+		}
+		
+		function fireRequest(request,callback){
+			var xmlhttp = new XMLHttpRequest();
+			xmlhttp.onreadystatechange=function()
+			  {
+			  if (xmlhttp.readyState==4 && xmlhttp.status==200)
+				{
+					callback(xmlhttp.response);
+				}
+			  }
+			xmlhttp.open("GET",request,false);
+			xmlhttp.send();
+		}
+		
+		var federatedPrintCount = 0;
+		var federatedPrintArray = {};
+		function federatedPrint(jsArray){
+			var $x = $('#federationJSON');
+			$x[0].innerHTML = '';
+			federatedPrintCount++;
+			var totalAPIs = Object.keys(apis).length;
+			
+			console.log('federation results combining... federated length >>> ' + Object.keys(federatedPrintArray).length + '   toadd length >>> ' + jsArray.length + ' apis >>> ' + totalAPIs);
+			
+			var length = Object.keys(federatedPrintArray).length;
+			for (var i in jsArray){
+				federatedPrintArray[length+i] = jsArray[i];
+			}
+			
+			if (federatedPrintCount==totalAPIs){
+				var printResults = [];
+				var autoCompleteResults = [];
+				for (var i in federatedPrintArray){
+					printResults.push({
+						name: federatedPrintArray[i].name,
+						address: federatedPrintArray[i].address,
+						source: federatedPrintArray[i].source
+					});
+					
+					autoCompleteResults.push(federatedPrintArray[i].name + '      ' + federatedPrintArray[i].source);
+				}
+				console.log(printResults);
+				var prettyprint = JSON.stringify(printResults, undefined, 2);
+				autocomplete(autoCompleteResults);
+				output('federationJSON',syntaxHighlight(prettyprint));
+				
+				federatedPrintCount = 0;
+				federatedPrintArray = {};
+			}
+		}
+	</script>
+	
+	<script>
+		var autocomplete;
+		$(function(){
+				var availableTags = [
+				"ActionScript",
+				"AppleScript",
+				"Asp",
+				"BASIC",
+				"C",
+				"C++",
+				"Clojure",
+				"COBOL",
+				"ColdFusion",
+				"Erlang",
+				"Fortran",
+				"Groovy",
+				"Haskell",
+				"Java",
+				"JavaScript",
+				"Lisp",
+				"Perl",
+				"PHP",
+				"Python",
+				"Ruby",
+				"Scala",
+				"Scheme"
+			];
+			$( "#federatedSearch" ).autocomplete({
+				source: function(req,res){
+					autocomplete = res;
+					federation(res);
+				},
+				minLength: 4,
+				delay: 1000
+			});
+		});
+	</script>
+	
+</head>
+
+<body>
+	<div header class="topbar">
+		<div class="white">
+			<nav>
+				<a href="/maps/directions" class="pushstate maps">
+					Directions
+					<span></span>
+				</a>
+				{{> user_info}}
+
+				{{loginButtons}}
+
+			</nav>
+		</div>
+	</div>
+	
+	<div class="map-wrapper">
+		<div class="map-screen background" data-url="/maps/google">
+		</div>
+		<span>Play with me: </span>
+		<div id="geocoder-panel">
+			<input id="address" type="textbox" value="Sydney, NSW">
+			<input type="button" value="Geocode" onclick="codeAddress()">
+		</div>
+
+		<div id="reverse-geocoder-panel">
+		  <input id="latlng" type="text" value="40.714224,-73.961452">
+		  <input type="button" value="Reverse Geocode" onclick="codeLatLng()">
+		</div>
+		
+		<div name="wit">
+			<div>
+				<h2>
+				<input type="text" id="federatedSearch" placeholder="ask me..." />
+				 <input id="federatedSearchButton" type="button" value="Submit" onClick="federation()"/>
+				 </h2>
+				<p id="federationJSON"></p>
+			</div>
+			
+			<h2><span>Wit</span></h2>
+			<p>
+				<b>Limits</b>
+					initial request before meta search</br>
+					<a href="https://wit.ai/pricing">unlimited queries</a></br>
+					unlimited open instances</br></br>
+				<b>Intents</b></br>
+				<i>food-intent</i></br>
+					Where are pizzas around Orchard</br>
+					Pizzas around Orchard</br>
+					Pizzas and Hot Dogs near Orchard</br>
+					Hotels near Orchard</br>
+				<i>accommodation-intent</i></br>
+					hotels near Singapore</br>
+					inns, Yishun</br></br>
+			</p>
+		</div>
+		
+	</div>
+	
+	
+</body>
+
+<template name="user_info">
+	<ul class="nav pull-right">
+		{{#if currentUser}}
+			{{> user_loggedin}}
+		{{else}}
+			{{> user_loggedout}}
+		{{/if}}
+	</ul>
+</template>
+
+<template name="user_loggedin">
+	{{#if loggingIn}}
+		<li><a>Logging in...</a></li>
+	{{else}}
+		<li>
+			<img class="img-rounded" style="height:32px; margin-top:4px;" src="{{userPicture}}"/>
+		</li>
+		<li class="dropdown">
+			<a href="#" class="dropdown-toggle" data-toggle="dropdown">
+				{{currentUser.profile.name}}
+				<b class="caret"></b>
+			</a>
+		</li>
+	{{/if}}
+</template>
+
+<template name="user_loggedout">
+	<li><a id="login"></a></li>
+</template>
+
+<template name="wolfram">
+	<appname>TravelFavours</appname>
+	<appid>YJQEEQ-TGTRT7Y9Y5</appid>
+</template>

@@ -1,0 +1,1574 @@
+<head>
+  <title>maps</title>
+	<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+	<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+	<script type="text/javascript" src="http://code.jquery.com/ui/1.10.4/jquery-ui.js"></script>
+	<script>
+		  window.fbAsyncInit = function() {
+			FB.init({
+			  appId      : '{829928090368832}',
+			  xfbml      : true,
+			  version    : 'v2.0'
+			});
+		  };
+
+		  (function(d, s, id){
+			 var js, fjs = d.getElementsByTagName(s)[0];
+			 if (d.getElementById(id)) {return;}
+			 js = d.createElement(s); js.id = id;
+			 //js.src = "//connect.facebook.net/en_US/sdk/debug.js"
+			 js.src = "//connect.facebook.net/en_US/sdk.js";
+			 fjs.parentNode.insertBefore(js, fjs);
+		   }(document, 'script', 'facebook-jssdk'));
+    </script>
+	<script src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript"
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA8lowWne_PVvQZyZ9I_mLxRgk_s6x24fk&sensor=true&libraries=places,weather">
+    </script>
+
+    <script type="text/javascript">
+		var map, geocoder,marker,directionsDisplay,elevator,chart,polyline;
+		var infowindow = new google.maps.InfoWindow();
+		var directionsService = new google.maps.DirectionsService();
+		
+		function codeAddress() {
+		  var address = document.getElementById('address').value;
+		  geocoder.geocode( { 'address': address}, function(results, status) {
+			if (status == google.maps.GeocoderStatus.OK) {
+			  map.setCenter(results[0].geometry.location);
+			  var marker = new google.maps.Marker({
+				  map: map,
+				  position: results[0].geometry.location
+			  });
+			} else {
+			  alert('Geocode was not successful for the following reason: ' + status);
+			}
+		  });
+		}
+		
+		function codeLatLng() {
+		  var input = document.getElementById('latlng').value;
+		  var latlngStr = input.split(',', 2);
+		  var lat = parseFloat(latlngStr[0]);
+		  var lng = parseFloat(latlngStr[1]);
+		  var latlng = new google.maps.LatLng(lat, lng);
+		  geocoder.geocode({'latLng': latlng}, function(results, status) {
+			if (status == google.maps.GeocoderStatus.OK) {
+			  if (results[1]) {
+				map.setZoom(11);
+				marker = new google.maps.Marker({
+					position: latlng,
+					map: map
+				});
+				infowindow.setContent(results[1].formatted_address);
+				infowindow.open(map, marker);
+			  } else {
+				alert('No results found');
+			  }
+			} else {
+			  alert('Geocoder failed due to: ' + status);
+			}
+		  });
+		}
+	
+	function initialize(){
+		initializeBasicMap();
+		initializeGoogleDirections();
+		initializeElevation();
+		initializePlacesLibrary();
+	}
+	
+      function initializeBasicMap() {
+		var styles = [
+			{
+			  stylers: [
+				{ hue: "#00ffe6" },
+				{ saturation: -20 }
+			  ]
+			},{
+			  featureType: "road",
+			  elementType: "geometry",
+			  stylers: [
+				{ lightness: 100 },
+				{ visibility: "simplified" }
+			  ]
+			},{
+			  featureType: "road",
+			  elementType: "labels",
+			  stylers: [
+				{ visibility: "off" }
+			  ]
+			}
+		];
+		
+		var styledMap = new google.maps.StyledMapType(styles,{name: "Styled Map"});
+		
+		//geo coding
+		geocoder = new google.maps.Geocoder();
+		
+        var mapOptions = {
+			zoom: 4,
+			center: new google.maps.LatLng(-28, 137.883),
+			mapTypeControl: true,
+			mapTypeControlOptions: {
+				style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
+				position: google.maps.ControlPosition.BOTTOM_CENTER,
+				mapTypeIds: [google.maps.MapTypeId.ROADMAP,google.maps.MapTypeId.SATELLITE, google.maps.MapTypeId.HYBRID,google.maps.MapTypeId.TERRAIN, 'map_style']
+			},
+			panControl: true,
+			panControlOptions: {
+				position: google.maps.ControlPosition.TOP_RIGHT
+			},
+			zoomControl: true,
+			zoomControlOptions: {
+				style: google.maps.ZoomControlStyle.LARGE,
+				position: google.maps.ControlPosition.LEFT_CENTER
+			},
+			scaleControl: true,  // fixed to BOTTOM_RIGHT
+			streetViewControl: true,
+			streetViewControlOptions: {
+				position: google.maps.ControlPosition.LEFT_TOP
+			}
+		}
+        map = new google.maps.Map(document.getElementsByClassName("map-screen")[0],
+            mapOptions);
+			
+		//Associate the styled map with the MapTypeId and set it to display.
+		map.mapTypes.set('map_style', styledMap);
+		map.setMapTypeId('map_style');
+		
+		map.data.loadGeoJson('https://storage.googleapis.com/maps-devrel/google.json');
+		
+		// Color each letter gray. Change the color when the isColorful property
+		  // is set to true.
+		  map.data.setStyle(function(feature) {
+			var color = 'gray';
+			if (feature.getProperty('isColorful')) {
+			  color = feature.getProperty('color');
+			}
+			return {
+			  fillColor: color,
+			  strokeColor: color,
+			  strokeWeight: 2
+			};
+		  });
+
+		  // When the user clicks, set 'isColorful', changing the color of the letters.
+		  map.data.addListener('click', function(event) {
+			event.feature.setProperty('isColorful', true);
+		  });
+
+		  // When the user hovers, tempt them to click by outlining the letters.
+		  // Call revertStyle() to remove all overrides. This will use the style rules
+		  // defined in the function passed to setStyle()
+		  map.data.addListener('mouseover', function(event) {
+			map.data.revertStyle();
+			map.data.overrideStyle(event.feature, {strokeWeight: 8});
+		  });
+
+		  map.data.addListener('mouseout', function(event) {
+			map.data.revertStyle();
+		  });
+      }
+	  
+	function initializeGoogleDirections() {
+		  directionsDisplay = new google.maps.DirectionsRenderer();
+		  var mapOptions = {
+			zoom: 7,
+			center: new google.maps.LatLng(41.850033, -87.6500523)
+		  };
+		  var map = new google.maps.Map(document.getElementById('google-directions'),
+			  mapOptions);
+		  directionsDisplay.setMap(map);
+		  directionsDisplay.setPanel(document.getElementById('directions-panel'));
+
+		  var control = document.getElementById('control');
+		  control.style.display = 'block';
+		  map.controls[google.maps.ControlPosition.TOP_CENTER].push(control);
+	}
+	
+	function calcRoute() {
+	  var start = document.getElementById('start').value;
+	  var end = document.getElementById('end').value;
+	  var selectedMode = document.getElementById('mode').value;
+	  var request = {
+		origin: start,
+		destination: end,
+		travelMode: google.maps.TravelMode[selectedMode]
+	  };
+	  directionsService.route(request, function(response, status) {
+		if (status == google.maps.DirectionsStatus.OK) {
+		  directionsDisplay.setDirections(response);
+		}
+	  });
+	}
+
+	// The following path marks a general path from Mt.
+	// Whitney, the highest point in the continental United
+	// States to Badwater, Death Valley, the lowest point.
+	var elevationMap;
+	var elevationInfoWindow = new google.maps.InfoWindow();
+	
+	var whitney = new google.maps.LatLng(36.578581, -118.291994);
+	var lonepine = new google.maps.LatLng(36.606111, -118.062778);
+	var owenslake = new google.maps.LatLng(36.433269, -117.950916);
+	var beattyjunction = new google.maps.LatLng(36.588056, -116.943056);
+	var panamintsprings = new google.maps.LatLng(36.339722, -117.467778);
+	var badwater = new google.maps.LatLng(36.23998, -116.83171);
+
+	// Load the Visualization API and the columnchart package.
+	google.load('visualization', '1', {packages: ['columnchart']});
+
+	function initializeElevation() {
+	  var mapOptions = {
+		zoom: 8,
+		center: lonepine,
+		mapTypeId: 'terrain'
+	  }
+	  elevationMap = new google.maps.Map(document.getElementById('elevation_map'), mapOptions);
+
+	  // Create an ElevationService.
+	  elevator = new google.maps.ElevationService();
+
+	  // Draw the path, using the Visualization API and the Elevation service.
+	  drawPath();
+	}
+
+	function drawPath() {
+
+	  // Create a new chart in the elevation_chart DIV.
+	  chart = new google.visualization.ColumnChart(document.getElementById('elevation_chart'));
+
+	  var path = [ whitney, lonepine, owenslake, panamintsprings, beattyjunction, badwater];
+
+	  // Create a PathElevationRequest object using this array.
+	  // Ask for 256 samples along that path.
+	  var pathRequest = {
+		'path': path,
+		'samples': 256
+	  }
+
+	  // Initiate the path request.
+	  elevator.getElevationAlongPath(pathRequest, plotElevation);
+	}
+
+	// Takes an array of ElevationResult objects, draws the path on the map
+	// and plots the elevation profile on a Visualization API ColumnChart.
+	function plotElevation(results, status) {
+	  if (status != google.maps.ElevationStatus.OK) {
+		return;
+	  }
+	  var elevations = results;
+
+	  // Extract the elevation samples from the returned results
+	  // and store them in an array of LatLngs.
+	  var elevationPath = [];
+	  for (var i = 0; i < results.length; i++) {
+		elevationPath.push(elevations[i].location);
+	  }
+
+	  // Display a polyline of the elevation path.
+	  console.log(elevationMap);
+	  var pathOptions = {
+		path: elevationPath,
+		strokeColor: '#0000CC',
+		opacity: 0.4,
+		map: elevationMap
+	  }
+	  polyline = new google.maps.Polyline(pathOptions);
+
+	  // Extract the data from which to populate the chart.
+	  // Because the samples are equidistant, the 'Sample'
+	  // column here does double duty as distance along the
+	  // X axis.
+	  var data = new google.visualization.DataTable();
+	  data.addColumn('string', 'Sample');
+	  data.addColumn('number', 'Elevation');
+	  for (var i = 0; i < results.length; i++) {
+		data.addRow(['', elevations[i].elevation]);
+	  }
+
+	  // Draw the chart using the data within its DIV.
+	  document.getElementById('elevation_chart').style.display = 'block';
+	  chart.draw(data, {
+		height: 150,
+		legend: 'none',
+		titleY: 'Elevation (m)'
+	  });
+	}
+	
+	function initializePlacesLibrary() {
+		  var mapOptions = {
+			center: new google.maps.LatLng(-33.8688, 151.2195),
+			zoom: 13
+		  };
+		  
+		  var map = new google.maps.Map(document.getElementById('places-map'),
+			mapOptions);
+
+		  var input = /** @type {HTMLInputElement} */(
+			  document.getElementById('pac-input'));
+
+		  var types = document.getElementById('type-selector');
+		  map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
+		  map.controls[google.maps.ControlPosition.TOP_LEFT].push(types);
+
+		  var autocomplete = new google.maps.places.Autocomplete(input);
+		  autocomplete.bindTo('bounds', map);
+
+		  var infowindow = new google.maps.InfoWindow();
+		  var marker = new google.maps.Marker({
+			map: map,
+			anchorPoint: new google.maps.Point(0, -29)
+		  });
+		  
+		  var weatherLayer = new google.maps.weather.WeatherLayer({
+			temperatureUnits: google.maps.weather.TemperatureUnit.CELSIUS,
+			windSpeedUnit: google.maps.weather.WindSpeedUnit.KILOMETERS_PER_HOUR
+		  });
+		  weatherLayer.setMap(map);
+
+		  var cloudLayer = new google.maps.weather.CloudLayer();
+		  cloudLayer.setMap(map);
+
+		  google.maps.event.addListener(autocomplete, 'place_changed', function() {
+			infowindow.close();
+			marker.setVisible(false);
+			var place = autocomplete.getPlace();
+			if (!place.geometry) {
+			  return;
+			}
+
+			// If the place has a geometry, then present it on a map.
+			if (place.geometry.viewport) {
+			  map.fitBounds(place.geometry.viewport);
+			} else {
+			  map.setCenter(place.geometry.location);
+			  map.setZoom(17);  // Why 17? Because it looks good.
+			}
+			marker.setIcon(/** @type {google.maps.Icon} */({
+			  url: place.icon,
+			  size: new google.maps.Size(71, 71),
+			  origin: new google.maps.Point(0, 0),
+			  anchor: new google.maps.Point(17, 34),
+			  scaledSize: new google.maps.Size(35, 35)
+			}));
+			marker.setPosition(place.geometry.location);
+			marker.setVisible(true);
+
+			var address = '';
+			if (place.address_components) {
+			  address = [
+				(place.address_components[0] && place.address_components[0].short_name || ''),
+				(place.address_components[1] && place.address_components[1].short_name || ''),
+				(place.address_components[2] && place.address_components[2].short_name || '')
+			  ].join(' ');
+			}
+			
+			var photos = place.photos;
+			
+			if (!photos){
+				infowindow.setContent('<div><strong>' + place.name + '</strong><br>' + address);
+			}else{
+				var mainPhoto = photos[0].getUrl({'maxWidth': 55, 'maxHeight': 55});
+				infowindow.setContent('<div class="places-photo"><IMG BORDER="0" ALIGN="Left" SRC="'+mainPhoto+'"><div class="places-info"><strong>' + place.name + '</strong><br>' + address);
+			}
+			
+			infowindow.open(map, marker);
+		  });
+
+		  // Sets a listener on a radio button to change the filter type on Places
+		  // Autocomplete.
+		  function setupClickListener(id, types) {
+			var radioButton = document.getElementById(id);
+			google.maps.event.addDomListener(radioButton, 'click', function() {
+			  autocomplete.setTypes(types);
+			});
+		  }
+
+		  setupClickListener('changetype-all', []);
+		  setupClickListener('changetype-establishment', ['establishment']);
+		  setupClickListener('changetype-geocode', ['geocode']);
+		}
+		
+		function getFBToken(){
+			return Meteor.user().services.facebook.accessToken;
+		  }
+		
+		function fbPlacesSearch(){
+			var $x = $('#fbPlacesJSON');
+			$x[0].innerHTML = '';
+			var queryTerm = $("#demo-input-facebook-theme").val();
+			var request = 'https://graph.facebook.com/search?type=place&q=' + queryTerm + '&center=40.714224,-73.961452&distance=1000&access_token=' + getFBToken();
+			
+			fireXMLRequest(request,'fbPlacesJSON');
+		}
+		
+		function fourSquareVenuesPlacesSearch(){
+			var $x = $('#fourSquareVenuesPlacesJSON');
+			$x[0].innerHTML = 'loading...';
+			var queryTerm = $("#foursquareVenues").val();
+			
+			var request = 'https://api.foursquare.com/v2/venues/search?ll=40.7,-74&query=' + queryTerm + '&client_id=KCWOPUJ5UQRT5GOTEZJL2BR13A4Y3O3YUZQQJFWGBGSPQ0ZB&client_secret=S4FTOP35ATA02XX5YGOIWZWBEI52HIOSUZYWGWXRWY4GMW14&v=20140510';
+			
+			fireXMLRequest(request,'fourSquareVenuesPlacesJSON');
+		}
+		
+		function fireXMLRequest(request,outputID){
+			var xmlhttp = new XMLHttpRequest();
+			xmlhttp.onreadystatechange=function()
+			  {
+			  if (xmlhttp.readyState==4 && xmlhttp.status==200)
+				{
+				var prettyprint = JSON.stringify(xmlhttp.responseText, undefined, 2);
+				var $x = $('#fourSquareVenuesPlacesJSON');
+				$x[0].innerHTML = '';
+				output(outputID,syntaxHighlight(xmlhttp.responseText));
+				}
+			  }
+			xmlhttp.open("GET",request,true);
+			xmlhttp.send();
+		}
+		
+		function xhrRequest(req,callback){
+			var xmlhttp = new XMLHttpRequest();
+			xmlhttp.onreadystatechange=function()
+			  {
+			  if (xmlhttp.readyState==4 && xmlhttp.status==200) {
+					callback(xmlhttp.responseText);
+				}
+			  }
+			xmlhttp.open("GET",req,true);
+			xmlhttp.send();
+		}
+		
+		function output(jsonOutputID,inp) {
+			var child = document.createElement('pre');
+			child.innerHTML = inp;
+			document.getElementById(jsonOutputID).appendChild(child);//appendChild(document.createElement('pre')).innerHTML = inp;
+		}
+
+		function syntaxHighlight(json) {
+			json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+			return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+				var cls = 'number';
+				if (/^"/.test(match)) {
+					if (/:$/.test(match)) {
+						cls = 'key';
+					} else {
+						cls = 'string';
+					}
+				} else if (/true|false/.test(match)) {
+					cls = 'boolean';
+				} else if (/null/.test(match)) {
+					cls = 'null';
+				}
+				return '<span class="' + cls + '">' + match + '</span>';
+			});
+		}
+	
+		google.maps.event.addDomListener(window, 'load', initialize);
+		
+		var currentLocation;
+		
+		function getPosition(p){
+			currentLocation =  {
+				lat: p.coords.latitude,
+				lng: p.coords.longitude
+			}
+		}
+		
+		function getCurrentLocation(){
+			if (navigator.geolocation){
+				navigator.geolocation.watchPosition(getPosition);
+			}
+		}
+		
+		getCurrentLocation();
+    </script>
+	
+	<script type="text/javascript" >
+		var witAppKey = '5GH4FQS4YQLZNVKRHQURSRFBMWC4XQ2E';
+		var apis = {
+			'four-square' : {
+				clientID: 'KCWOPUJ5UQRT5GOTEZJL2BR13A4Y3O3YUZQQJFWGBGSPQ0ZB',
+				clientSecret: 'S4FTOP35ATA02XX5YGOIWZWBEI52HIOSUZYWGWXRWY4GMW14',
+				api: 'four-square',
+				version: '20140510',
+				mapper: {
+					latlng : 'll',
+					latlngConverter: function(lat,lon){
+						return lat + ',' + lon;
+					},
+					geoCode: 'near',
+					query: 'query',
+					resultsLimit: 'limit',
+					intent: 'intent',
+					radius: 'radius',//max 100 000
+					intentOptions: {
+						placeSearch : 'match', //highly sensitive four square search
+						globalSearch: 'global'
+					},
+					apiTypeParsers: {
+						explore: {
+							resultMap : { //from recommendation object
+								id: function(e){
+										return e.venue.id;
+									},
+								name : function(e){
+									return e.venue.name;
+									},
+								address : function(e){
+									return e.venue.location.address;
+									},
+								contact: function(e){
+										if (e.venue.contact){
+											return e.venue.contact.formattedPhone;
+										}else{
+											return;
+										}
+									},
+								hours: function(e){
+										if (e.venue.hours){
+											return e.venue.hours.status;
+										}else{
+											return;
+										}
+									},
+								lat : function(e){
+										return e.venue.location.lat;
+									},
+								lng : function(e){
+										return e.venue.location.lng;
+									},
+								likes : function(e){
+										return e.venue.likes.count;
+									},
+								comments : function(e){
+										var tips = e.tips;
+										var comments = [];
+										for (var i in tips){
+											var tip = tips[i];
+											comments.push({
+												id : tip.id,
+												comment : tip.text,
+												username : tip.user.firstName + ' ' + tip.user.lastName,
+												photo : tip.user.photo.prefix + '' + tip.user.photo.suffix
+											});
+										}
+										return comments;
+									},
+								photos: function(e){
+									return e.venue.photos;
+								},
+								website: function(e){
+									return e.venue.url;
+								},
+								checkIns : function(e){
+										return e.venue.stats.checkinsCount;
+									},
+								collatedReccommendation : function(e){
+										return {
+											id: this.id(e),
+											name: this.name(e),
+											address: this.address(e),
+											contact: this.contact(e),
+											hours: this.hours(e),
+											lat: this.lat(e),
+											lng: this.lng(e),
+											likes: this.likes(e),
+											comments: this.comments(e),
+											checkIns: this.checkIns(e),
+											photos: this.photos(e),
+											website: this.website(e),
+											source: 'Four Square'
+										};
+									}
+							},
+							getReccommendations : function(baseObject){
+								var reccommendations = baseObject.response.groups[0].items;
+								console.log(baseObject);
+								var list = [];
+								for (var key in reccommendations){
+									var r = reccommendations[key];
+									list.push(this.resultMap.collatedReccommendation(r));
+								}
+								console.log('four-square reccommendations called');
+								return list;
+							}
+						},
+						search: {
+							resultMap: {
+								id: function(e){
+										return e.id;
+									},
+								name : function(e){
+									return e.name;
+									},
+								address : function(e){
+									return e.location.address;
+									},
+								contact: function(e){
+										if (e.contact){
+											return e.contact.formattedPhone;
+										}else{
+											return;
+										}
+									},
+								hours: function(e){
+										return;
+									},
+								lat : function(e){
+										return e.location.lat;
+									},
+								lng : function(e){
+										return e.location.lng;
+									},
+								likes : function(e){
+										return;
+									},
+								comments : function(e){
+										return [];
+									},
+								checkIns : function(e){
+										return e.stats.checkinsCount;
+									},
+								photos: function(e){
+									if (e.venue){
+										return e.venue.photos;
+									}else{
+										return;
+									}
+								},
+								website: function(e){
+									if (e.venue){
+										return e.venue.url;
+									}else{
+										return;
+									}
+								},
+								collatedReccommendation : function(e){
+										return {
+											id: this.id(e),
+											name: this.name(e),
+											address: this.address(e),
+											contact: this.contact(e),
+											hours: this.hours(e),
+											lat: this.lat(e),
+											lng: this.lng(e),
+											likes: this.likes(e),
+											comments: this.comments(e),
+											checkIns: this.checkIns(e),
+											photos: this.photos(e),
+											website: this.website(e),
+											source: 'Four Square'
+										};
+									}
+							},
+							getReccommendations : function(baseObject){
+								var reccommendations = baseObject.response.venues;
+								var list = [];
+								for (var key in reccommendations){
+									var r = reccommendations[key];
+									list.push(this.resultMap.collatedReccommendation(r));
+								}
+								return list;
+							}
+						}
+					}
+				},
+				searchRequest: function(nearOrLL,intentType,witObject){
+					switch (intentType){
+						case 'food_intent':
+							var options = {
+								section: 'food',
+								query: this.arrayToString(witObject,witObject.outcome.entities.food)
+							};
+							if (nearOrLL){
+								options['near'] = witObject.outcome.entities.location.value;
+							}else{
+								options['ll'] = witObject.outcome.entities.location.value;
+								witObject.outcome.entities.location = undefined;
+							}
+							return {
+								service: this.api,
+								type: 'explore',
+								request: this.generateRequest('explore',options)
+							}
+							break;
+						case 'accommodation_intent':
+							var options = {
+								query: this.arrayToString(witObject,witObject.outcome.entities.accommodation)
+							};
+							if (nearOrLL){
+								options['near'] = witObject.outcome.entities.location.value;
+							}else{
+								options['ll'] = witObject.outcome.entities.location.value;
+								witObject.outcome.entities.location = undefined;
+							}
+							return {
+								service: this.api,
+								type: 'search',
+								request: this.generateRequest('search',options)
+							}
+							break;
+						default:
+							console.log('default search');
+							break;
+					}
+				},
+				generateRequest: function(type,options){
+					var optionsString = ''
+					for (var key in options){
+						optionsString += key + '=' + options[key] + '&';
+					}
+					return 'https://api.foursquare.com/v2/venues/' + type + '?' + optionsString + 'client_id=' + this.clientID + '&client_secret=' + this.clientSecret + '&v=' + this.version;
+				},
+				arrayToString: function (witObject,array){
+					if (array){
+						var queryString = '';
+						if (array instanceof Array){
+							for (var key in array){
+								queryString += array[key].value + ' ';
+							}
+						}else{
+							queryString = array.value;
+						}
+						
+						return queryString.trim();
+					}else{
+						var locationArr = witObject.outcome.entities.location.value.split(/\s+/);
+						return tokenizeAndIsolateQuery(witObject.msg_body,locationArr);
+					}
+				}
+			},
+			'google': {
+				key: 'AIzaSyA8lowWne_PVvQZyZ9I_mLxRgk_s6x24fk',
+				api: 'google',
+				mapper: {
+					service: new google.maps.places.PlacesService(map),
+					latlng : 'location',
+					latlngConverter: function(lat,lon){
+						return new google.maps.LatLng(lat,lon);
+					},
+					query: 'query',
+					openNow: 'openNow', //boolean filter
+					radius: 'radius',// max 50000
+					minPrice: 'minPriceLevel',//0
+					maxPrice: 'maxPriceLevel',//4
+					types: 'types',
+					apiTypeParsers: {
+						places_library: {
+							resultMap : { //from recommendation object
+								id: function(e){
+										return e.id;
+									},
+								name : function(e){
+									return e.name;
+									},
+								address : function(e){
+									return e.formatted_address;
+									},
+								contact: function(e){
+										return e.formatted_phone_number;
+									},
+								hours: function(e){
+										if (e.opening_hours){
+											return e.opening_hours.open_now;
+										}else{
+											return;
+										}
+									},
+								lat : function(e){
+										return e.geometry.location.lat;
+									},
+								lng : function(e){
+										return e.geometry.location.lng;
+									},
+								likes : function(e){
+										return;
+									},
+								website: function(e){
+										return e.website;
+									},
+								comments : function(e){
+										var reviews = e.reviews;
+										var comments = [];
+										for (var i in reviews){
+											var review = reviews[i];
+											comments.push({
+												id : review.author_url,
+												comment : review.text,
+												username : review.author_name,
+												photo : undefined
+											});
+										}
+										return comments;
+									},
+								photos: function(e){
+									return e.photos;
+									},
+								checkIns : function(e){
+										return;
+									},
+								collatedReccommendation : function(e){
+										return {
+											id: this.id(e),
+											name: this.name(e),
+											address: this.address(e),
+											contact: this.contact(e),
+											hours: this.hours(e),
+											lat: this.lat(e),
+											lng: this.lng(e),
+											likes: this.likes(e),
+											comments: this.comments(e),
+											checkIns: this.checkIns(e),
+											website: this.website(e),
+											photos: this.photos(e),
+											source: 'Google'
+										};
+									}
+							},
+							getReccommendations : function(baseObject,status){
+								var reccommendations = baseObject;
+								var list = [];
+								if (status == 'OK'){
+									for (var key in reccommendations){
+										var r = reccommendations[key];
+										list.push(googleResultMapper.collatedReccommendation(r));
+									}
+								}
+								console.log(list);
+								federatedPrint(list);
+								return list;
+							}
+						}
+					},
+					fireRequest: function(reqObj){
+						var service = new google.maps.places.PlacesService(map);
+						googleResultMapper = this['apiTypeParsers'][reqObj.type]['resultMap'];
+						return service.textSearch(reqObj.request,this['apiTypeParsers'][reqObj.type].getReccommendations);
+					}
+				},
+				searchRequest: function(nearOrLL,intentType,witObject){
+					var msg = witObject.msg_body;
+					var request = {};
+					request[this.mapper.query] = msg;
+					var location;
+					if (!nearOrLL){
+						location = new google.maps.LatLng(currentLocation.lat,currentLocation.lng);
+						request[this.mapper.latlng] = location;
+						request[this.mapper.radius] = 10000;
+					}
+					switch (intentType){
+						case 'food_intent':
+							request[this.mapper.types] = ['food','cafe','restaurant','meal_delivery','meal_takeaway'];
+							break;
+						default:
+							break;
+					}
+					return {
+						service: this.api,
+						type: 'places_library',
+						request: request
+					}
+				}
+			},
+			facebook: {
+				key: '',
+				api: 'places',
+				mapper: {
+					latlng : 'center',
+					latlngConverter: function(lat,lon){
+						return lat+','+lon;
+					},
+					query: 'q',
+					radius: 'distance',//max 1000
+					apiTypeParsers: {
+						place: {
+							resultMap : { //from recommendation object
+								id: function(e){
+										return e.id;
+									},
+								name : function(e){
+									return e.name;
+									},
+								address : function(e){
+									return e.location.street + ',' + e.location.city;
+									},
+								contact: function(e){
+										return;
+									},
+								hours: function(e){
+										return;
+									},
+								lat : function(e){
+										return e.location.latitude;
+									},
+								lng : function(e){
+										return e.location.longitude;
+									},
+								likes : function(e){
+										return;
+									},
+								website: function(e){
+										return;
+									},
+								comments : function(e){
+										return;
+									},
+								photos: function(e){
+									return;
+									},
+								checkIns : function(e){
+										return;
+									},
+								collatedReccommendation : function(e){
+										return {
+											id: this.id(e),
+											name: this.name(e),
+											address: this.address(e),
+											contact: this.contact(e),
+											hours: this.hours(e),
+											lat: this.lat(e),
+											lng: this.lng(e),
+											likes: this.likes(e),
+											comments: this.comments(e),
+											checkIns: this.checkIns(e),
+											website: this.website(e),
+											photos: this.photos(e),
+											source: 'Facebook'
+										};
+									}
+							},
+							getReccommendations : function(baseObject,status){
+								var reccommendations = baseObject.data;
+								var list = [];
+								for (var key in reccommendations){
+									var r = reccommendations[key];
+									list.push(this.resultMap.collatedReccommendation(r));
+								}
+								return list;
+							}
+						}
+					}
+				},
+				searchRequest: function(nearOrLL,intentType,witObject){
+					this.key = getFBToken();
+					var options = {};
+					switch (intentType){
+						case 'food_intent':
+							if (nearOrLL){
+								options[this.mapper.query] = witObject.msg_body;
+							}else{
+								options[this.mapper.query] = this.arrayToString(witObject,witObject.outcome.entities.food);
+								options[this.mapper.latlng] = witObject.outcome.entities.location.value;
+								options[this.mapper.radius] = 1000;
+								witObject.outcome.entities.location = undefined;
+							}
+							return {
+								service: this.api,
+								type: 'place',
+								request: this.generateRequest('place',options)
+							}
+							break;
+						case 'accommodation_intent':
+							if (nearOrLL){
+								options[this.mapper.query] = witObject.msg_body;
+							}else{
+								options[this.mapper.query] = this.arrayToString(witObject,witObject.outcome.entities.accommodation);
+								options[this.mapper.latlng] = witObject.outcome.entities.location.value;
+								options[this.mapper.radius] = 1000;
+								witObject.outcome.entities.location = undefined;
+							}
+							return {
+								service: this.api,
+								type: 'place',
+								request: this.generateRequest('place',options)
+							}
+							break;
+						default:
+							console.log('default search');
+							break;
+					}
+				},
+				generateRequest: function(type,options){
+					var optionsString = ''
+					for (var key in options){
+						optionsString += key + '=' + options[key] + '&';
+					}
+					return 'https://graph.facebook.com/search?type=' + type + '&' + optionsString + '&access_token=' + this.key;
+				},
+				arrayToString: function (witObject,array){
+					if (array){
+						var queryString = '';
+						if (array instanceof Array){
+							for (var key in array){
+								queryString += array[key].value + ' ';
+							}
+						}else{
+							queryString = array.value;
+						}
+						
+						return queryString.trim();
+					}else{
+						var locationArr = witObject.outcome.entities.location.value.split(/\s+/);
+						return tokenizeAndIsolateQuery(witObject.msg_body,locationArr);
+					}
+				}
+			}
+		};
+		
+		var intents = {
+			'accommodation_intent' : {
+				purpose: 'accommodation search',
+				action: function(witResponse){
+					for (var i in apis){
+						var api = apis[i];
+						if (witResponse.outcome.entities.location){
+							console.log(witResponse.outcome.intent);
+							var generatedRequest = api.searchRequest(true,witResponse.outcome.intent,witResponse);
+							console.log(generatedRequest);
+							var request = generatedRequest.request;
+							var searchType = generatedRequest.type;
+							var apiName = generatedRequest.service;
+							if (apiName == 'google'){
+								api['mapper'].fireRequest(generatedRequest);
+							}else{
+								fireRequest(request,function(response){
+									var list = api['mapper']['apiTypeParsers'][searchType].getReccommendations(JSON.parse(response));
+									console.log(list);
+									federatedPrint(list);
+								});
+							}
+						}else{
+							getCurrentLocation();
+							witResponse.outcome.entities.location = {};
+							witResponse.outcome.entities.location.value = currentLocation.lat + ',' +currentLocation.lng;
+							var generatedRequest = api.searchRequest(false,witResponse.outcome.intent,witResponse);
+							var request = generatedRequest.request;
+							var searchType = generatedRequest.type;
+							var apiName = generatedRequest.service;
+							if (apiName == 'google'){
+								api['mapper'].fireRequest(generatedRequest);
+							}else{
+								fireRequest(request,function(response){
+									var list = api['mapper']['apiTypeParsers'][searchType].getReccommendations(JSON.parse(response));
+									console.log(list);
+									federatedPrint(list);
+								});
+							}
+						}
+					}
+				}
+			},
+			'location_intent' : {
+				purpose: 'location search',
+				action: function(){
+					
+				}
+			},
+			'food_intent' : {
+				purpose: 'food search',
+				action: function(witResponse){
+					for (var i in apis){
+						var api = apis[i];
+						if (witResponse.outcome.entities.location){
+							var generatedRequest = api.searchRequest(true,witResponse.outcome.intent,witResponse);
+							var request = generatedRequest.request;
+							var searchType = generatedRequest.type;
+							var apiName = generatedRequest.service;
+							if (apiName == 'google'){
+								console.log('google fired');
+								api['mapper'].fireRequest(generatedRequest);
+							}else{
+								console.log('google not fired');
+								fireRequest(request,function(response){
+									var list = api['mapper']['apiTypeParsers'][searchType].getReccommendations(JSON.parse(response));
+									console.log(list);
+									federatedPrint(list,witResponse.autocomplete);
+								});
+							}
+						}else{
+							getCurrentLocation();
+							witResponse.outcome.entities.location = {};
+							witResponse.outcome.entities.location.value = currentLocation.lat + ',' +currentLocation.lng;
+							var generatedRequest = api.searchRequest(false,witResponse.outcome.intent,witResponse);
+							var request = generatedRequest.request;
+							var searchType = generatedRequest.type;
+							var apiName = generatedRequest.service;
+							if (apiName == 'google'){
+								console.log('google no location fired');
+								api['mapper'].fireRequest(generatedRequest);
+							}else{
+								console.log('google no location not fired');
+								fireRequest(request,function(response){
+									var list = api['mapper']['apiTypeParsers'][searchType].getReccommendations(JSON.parse(response));
+									console.log(list);
+									console.log(witResponse.autocomplete);
+									federatedPrint(list,witResponse.autocomplete);
+								});
+							}
+						}
+					}
+				}
+			}
+		};
+		
+		function setWitHeader(xhr){
+			xhr.setRequestHeader('Authorization','Bearer 5GH4FQS4YQLZNVKRHQURSRFBMWC4XQ2E');
+			xhr.setRequestHeader('Accent','application/vnd.wit.YYYYMMDD');
+			return xhr;
+		}
+		
+		function tokenize(inp){
+			return inp.trim().split(/\s+/);
+		}
+		
+		function tokenizeAndIsolateQuery(inp, unwantedArr){
+			var tokens = tokenize(inp);
+			var wantedItems = tokens.filter(function ( elem ) {
+				return unwantedArr.indexOf( elem ) === -1;
+			}); 
+			return wantedItems.join(' ');
+		}
+		
+		function getPredicates(array,item){
+			var index = array.indexOf(item);
+			if (index == -1){
+				return undefined;
+			}else{
+				return array.slice(0,index);
+			}
+		}
+		
+		function federatedSearch(search,httpResponse,autoCompleteResp){
+			var witResponse = JSON.parse(httpResponse);
+			var confidence = witResponse.outcome.confidence;
+			var intent = witResponse.outcome.intent;
+			witResponse.autocomplete = autoCompleteResp;
+			console.log(witResponse.autocomplete);
+			var locationEntities = [];
+			var intentEntities = [];
+			if (confidence>0.5){
+				intents[intent].action(witResponse);
+			}else{
+			
+			}
+		}
+		
+		function federation(autoCompleteResp){
+			var $query = $('#federatedSearch').val();
+			fireWitRequest($query,function(search,response){
+				console.log(autoCompleteResp);
+				federatedSearch(search,response,autoCompleteResp);
+			});
+		}
+		
+		function fireWitRequest(search,callback){
+			var xmlhttp = new XMLHttpRequest();
+			var request = 'https://api.wit.ai/message?access_token=' + witAppKey + '&q=' + search;
+			xmlhttp.onreadystatechange=function()
+			  {
+			  if (xmlhttp.readyState==4 && xmlhttp.status==200)
+				{
+					console.log(xmlhttp.response);
+					callback(search,xmlhttp.response);
+				}
+			  }
+			xmlhttp.open("GET",request,true);
+			xmlhttp.send();
+		}
+		
+		function fireRequest(request,callback){
+			var xmlhttp = new XMLHttpRequest();
+			xmlhttp.onreadystatechange=function()
+			  {
+			  if (xmlhttp.readyState==4 && xmlhttp.status==200)
+				{
+					callback(xmlhttp.response);
+				}
+			  }
+			xmlhttp.open("GET",request,false);
+			xmlhttp.send();
+		}
+		
+		var federatedPrintCount = 0;
+		var federatedPrintArray = {};
+		function federatedPrint(jsArray){
+			var $x = $('#federationJSON');
+			$x[0].innerHTML = '';
+			federatedPrintCount++;
+			var totalAPIs = Object.keys(apis).length;
+			
+			console.log('federation results combining... federated length >>> ' + Object.keys(federatedPrintArray).length + '   toadd length >>> ' + jsArray.length + ' apis >>> ' + totalAPIs);
+			
+			var length = Object.keys(federatedPrintArray).length;
+			for (var i in jsArray){
+				federatedPrintArray[length+i] = jsArray[i];
+			}
+			
+			if (federatedPrintCount==totalAPIs){
+				var printResults = [];
+				var autoCompleteResults = [];
+				for (var i in federatedPrintArray){
+					printResults.push({
+						name: federatedPrintArray[i].name,
+						address: federatedPrintArray[i].address,
+						source: federatedPrintArray[i].source
+					});
+					
+					autoCompleteResults.push(federatedPrintArray[i].name + '      ' + federatedPrintArray[i].source);
+				}
+				console.log(printResults);
+				var prettyprint = JSON.stringify(printResults, undefined, 2);
+				autocomplete(autoCompleteResults);
+				output('federationJSON',syntaxHighlight(prettyprint));
+				
+				federatedPrintCount = 0;
+				federatedPrintArray = {};
+			}
+		}
+	</script>
+	
+	<script>
+		var autocomplete;
+		$(function(){
+				var availableTags = [
+				"ActionScript",
+				"AppleScript",
+				"Asp",
+				"BASIC",
+				"C",
+				"C++",
+				"Clojure",
+				"COBOL",
+				"ColdFusion",
+				"Erlang",
+				"Fortran",
+				"Groovy",
+				"Haskell",
+				"Java",
+				"JavaScript",
+				"Lisp",
+				"Perl",
+				"PHP",
+				"Python",
+				"Ruby",
+				"Scala",
+				"Scheme"
+			];
+			$( "#federatedSearch" ).autocomplete({
+				source: function(req,res){
+					autocomplete = res;
+					federation(res);
+				},
+				minLength: 4,
+				delay: 1000
+			});
+		});
+	</script>
+	
+</head>
+
+<body>
+	<div header class="topbar">
+		<div class="white">
+			<nav>
+				<a href="/maps/directions" class="pushstate maps">
+					Directions
+					<span></span>
+				</a>
+				{{> user_info}}
+
+				{{loginButtons}}
+
+			</nav>
+		</div>
+	</div>
+	
+	<div class="map-wrapper">
+		<div class="map-screen background" data-url="/maps/google">
+		</div>
+		<span>Play with me: </span>
+		<div id="geocoder-panel">
+			<input id="address" type="textbox" value="Sydney, NSW">
+			<input type="button" value="Geocode" onclick="codeAddress()">
+		</div>
+
+		<div id="reverse-geocoder-panel">
+		  <input id="latlng" type="text" value="40.714224,-73.961452">
+		  <input type="button" value="Reverse Geocode" onclick="codeLatLng()">
+		</div>
+		
+		<div name="wit">
+			<div>
+				<h2>
+				<input type="text" id="federatedSearch" placeholder="ask me..." />
+				 <input id="federatedSearchButton" type="button" value="Submit" onClick="federation()"/>
+				 </h2>
+				<p id="federationJSON"></p>
+			</div>
+			
+			<h2><span>Wit</span></h2>
+			<p>
+				<b>Limits</b>
+					initial request before meta search</br>
+					<a href="https://wit.ai/pricing">unlimited queries</a></br>
+					unlimited open instances</br></br>
+				<b>Intents</b></br>
+				<i>food-intent</i></br>
+					Where are pizzas around Orchard</br>
+					Pizzas around Orchard</br>
+					Pizzas and Hot Dogs near Orchard</br>
+					Hotels near Orchard</br>
+				<i>accommodation-intent</i></br>
+					hotels near Singapore</br>
+					inns, Yishun</br></br>
+			</p>
+		</div>
+	
+		<div class="directions-wrapper" data-url="/maps/directions">
+			
+			<h2><span>Google Directions (2.5k requests/ IP/day)</span></h2>
+			<p>
+				<b>Users of the free API:</b></br>
+				2,500 directions requests per 24 hour period.</br>
+				Up to 8 waypoints allowed in each request. Waypoints are not available for transit directions.</br></br>
+				<b>Maps for Business customers:</b></br>
+				100,000 directions requests per 24 hour period.</br>
+				23 waypoints allowed in each request. Waypoints are not available for transit directions.</br></br>
+				<b>Important:</b></br>
+				Searching for transit directions counts as 4 requests against your quota.</br></br>
+				<b>Functions:</b></br>
+				Route planning</br>
+				Shortest path implementation</br>
+			</p>
+			
+			<div id="control">
+			  <strong>Start:</strong>
+			  <select id="start" onchange="calcRoute();">
+				<option value="chicago, il">Chicago</option>
+				<option value="st louis, mo">St Louis</option>
+				<option value="joplin, mo">Joplin, MO</option>
+				<option value="oklahoma city, ok">Oklahoma City</option>
+				<option value="amarillo, tx">Amarillo</option>
+				<option value="gallup, nm">Gallup, NM</option>
+				<option value="flagstaff, az">Flagstaff, AZ</option>
+				<option value="winona, az">Winona</option>
+				<option value="kingman, az">Kingman</option>
+				<option value="barstow, ca">Barstow</option>
+				<option value="san bernardino, ca">San Bernardino</option>
+				<option value="los angeles, ca">Los Angeles</option>
+			  </select>
+			  <strong>End:</strong>
+			  <select id="end" onchange="calcRoute();">
+				<option value="chicago, il">Chicago</option>
+				<option value="st louis, mo">St Louis</option>
+				<option value="joplin, mo">Joplin, MO</option>
+				<option value="oklahoma city, ok">Oklahoma City</option>
+				<option value="amarillo, tx">Amarillo</option>
+				<option value="gallup, nm">Gallup, NM</option>
+				<option value="flagstaff, az">Flagstaff, AZ</option>
+				<option value="winona, az">Winona</option>
+				<option value="kingman, az">Kingman</option>
+				<option value="barstow, ca">Barstow</option>
+				<option value="san bernardino, ca">San Bernardino</option>
+				<option value="los angeles, ca">Los Angeles</option>
+			  </select>
+			  <strong>Mode of Travel: </strong>
+				<select id="mode" onchange="calcRoute();">
+				  <option value="DRIVING">Driving</option>
+				  <option value="WALKING">Walking</option>
+				  <option value="BICYCLING">Bicycling</option>
+				  <option value="TRANSIT">Transit</option>
+				</select>
+			</div>
+	
+			<div id="directions-panel"></div>
+			<div id="google-directions"></div>
+		</div>
+		
+		<div class="elevation">
+			<h2><span>Elevation API (2.5k requests/ IP/day)</span></h2>
+			<p>
+				<b>Users of the free API:</b></br>
+				2,500 requests per 24 hour period.</br>
+				512 locations per request.</br>
+				25,000 total locations per 24 hour period.</br></br>
+				<b>Maps for Business customers:</b></br>
+				100,000 requests per 24 hour period.</br>
+				1,000,000 total locations per 24 hour period.</br>
+			<p>
+			
+			<div id="elevation_map" style="height:250px;"></div>
+			<div id="elevation_chart"></div>
+		</div>
+		
+		<div class="places-library">
+			<h2><span>Places (+weather)</span></h2>
+			<p>
+				<b>Places Library:</b></br>
+				Per user/ per day charge</br>
+				Amount not mentioned</br></br>
+				<b>Functions:</b></br>
+				Places search</br>
+				Places details</br>
+				Places photos</br>
+				Combine with other APIs on Search: Geographic Identity required. </br></br><b>Issue: </b>How to combine in a nice manner that is also cached on client/server to reduce the load and provide a fluid view (popup gallery?)</br>
+				<b>Suggested reference</b></br><a href="https://roadtrippers.com/guides">RoadTrippers.com (US itinerary website)</a></br>
+				**<i>Need to place the powered by Google icon</i></br></br>
+				<b>Places API</b></br>
+				daily limit of 100 000 requests per day</br>
+				<b>Important:</b>Allows for the adding of new places and deleting of places on google's side. It also allows for bumping of place priority according to user search</br>
+				</br>
+			<p>
+			<input id="pac-input" class="controls" type="text"
+				placeholder="Enter a location">
+			<div id="type-selector" class="controls">
+			  <input type="radio" name="type" id="changetype-all" checked="checked">
+			  <label for="changetype-all">All</label>
+
+			  <input type="radio" name="type" id="changetype-establishment">
+			  <label for="changetype-establishment">Establishments</label>
+
+			  <input type="radio" name="type" id="changetype-geocode">
+			  <label for="changetype-geocode">Geocodes</label>
+			</div>
+			<div id="places-map"></div>
+		</div>
+		
+		<div class="facebook-places">
+			<h2 id="theme"><span>Facebook Places</span></h2>
+			<p>
+				No limits on request, BUT, requires user login token, app ID too</br>
+				No geocoding, purely by latlng</br>
+				limits suggestions to a maximum of 5km</br>
+				Only textual search</br></br>
+				<b>Functions</b></br>
+				need to build a personalised autocomplete field</br>
+				hookup with google places</br>
+				comes with id call that can be used to pull page information, contact and photos</br></br>
+				<b>How to Use?</b></br>
+				Type in a basic search on the type of shops</br>
+				Fixed to NYC and 1km search radius</br>
+				JSON responses only</br></br>
+				<b>Authentication</b></br>
+				OAuth2.0 Authentication</br>
+				Need to protect appid and secret (currently exposed on client side)</br>
+			</p>
+			<div>
+				<input type="text" id="demo-input-facebook-theme" name="blah2" />
+				Type in your search parameter here (login on FB first!): <input type="button" value="Submit" onClick="fbPlacesSearch()"/>
+				<p id="fbPlacesJSON"></p>
+				<script type="text/javascript">
+				$(document).ready(function() {
+					$("#demo-input-facebook-theme").tokenInput("http://shell.loopj.com/tokeninput/tvshows.php", {
+						theme: "facebook"
+					});
+				});
+				</script>
+			</div>
+		</div>
+		
+		<div class="foursquare-venues">
+			<h2><span>FourSquare Venues</span></h2>
+			<p>
+				<b>How to Use?</b></br>
+					Type in a basic search on the type of shops</br>
+					Fixed to NYC and 1km search radius</br>
+					JSON responses only</br></br>
+				<b>Authentication</b></br>
+					OAuth2.0 Authentication for User specific behaviour</br>
+					Need to protect appid and secret (currently exposed on client side)</br>
+				<b>Functions</b></br>
+					Categories (Arts & entertainment, Food etc.) <i>hierarchical JSON response</i></br>
+					Explore (Returns a list of recommended venues near the current location)</br>
+					Managed (list of venues the current user manages)</br>
+					Search (list of venues near the current location, optionally matching a search term.)</br>
+					SuggestCompletion (a list of mini-venues partially matching the search term, near the location)</br>
+					Time Series (daily venue stats for a list of venues over a time range)</br>
+					Trending (list of venues near the current location with the most people currently checked in)</br></br>
+					
+				<b>Aspects of Information</b></br>
+					<b>Userless Access</b></br>
+					<a href="https://developer.foursquare.com/docs/venues/events" >Events ( access information about the current events at a place)</a></br>
+					<a href="https://developer.foursquare.com/docs/venues/hours" >Hours (opening and popular timeframes of hours of this venue)</a></br>
+					<a href="https://developer.foursquare.com/docs/venues/likes" >Likes (Returns friends and a total count of users who have liked this venue)</a></br>
+					<a href="https://developer.foursquare.com/docs/venues/links" >Links (URLs or identifiers from third parties that have been applied to this venue, such as how the New York Times refers to this venue and a URL for additional information from nytimes.com.)</a></br>
+					<a href="https://developer.foursquare.com/docs/venues/listed">Listed (The lists that this venue appears on)</a></br>
+					<a href="https://developer.foursquare.com/docs/venues/menu" >Menu (Returns menu information for a venue.)</a></br>
+					<a href="https://developer.foursquare.com/docs/venues/nextvenues" >Next Venues (Returns venues that people often check in to after the current venue. Up to 5 venues are returned in each query, and results are sorted by how many people have visited that venue after the current one. Homes are never returned in results)</a></br>
+					<a href="https://developer.foursquare.com/docs/venues/photos" >Photos (Returns photos for a venue. Limit by 100 photos)</a></br>
+					<a href="https://developer.foursquare.com/docs/venues/tips" >Tips (Returns tips for a venue. Comments about the venue )</a></br></br>
+					<b>User Required Access</b></br>
+					<a href="https://developer.foursquare.com/docs/venues/herenow">Here Now (Returns a list of friends and friends-of-friends at the venue for authenticated requests. If the acting user is currently checked in to the venue, then a list of other users is also returned.)</a></br>
+					<a href="https://developer.foursquare.com/docs/venues/similar" >Similar Venues (list of venues similar to the specified venue)</a></br>
+					<a href="https://developer.foursquare.com/docs/venues/stats">Venue Stats (stats over a given time range: <b>Targets venue managers</b>)</a></br></br>
+					
+				<b>Actions (Requires User Access)</b></br>
+					<a href="https://developer.foursquare.com/docs/venues/like">Like (Allows the acting user to like or unlike a venue.)</a></br>
+					<a href="https://developer.foursquare.com/docs/venues/dislike">Dislike (Allows the acting user to dislike or undo a previous dislike for a venue.)</a></br>
+					<a href="https://developer.foursquare.com/docs/venues/edit">Edit (Allows you to make changes to a venue (acting user must be a superuser or venue manager). Any blank parameter deletes an old value, any unspecified parameter does nothing.)</a></br>
+					<a href="https://developer.foursquare.com/docs/venues/flag">Flag (Allows users to indicate a venue is incorrect in some way. )</a></br>
+					<a href="https://developer.foursquare.com/docs/venues/setrole">Set Role (Sets a user's or page's role for a venue.)</a></br>
+			</p>
+			
+			<div>
+				Type in your venues search parameter here<input type="text" id="foursquareVenues" />
+				 <input type="button" value="Submit" onClick="fourSquareVenuesPlacesSearch()"/>
+				<p id="fourSquareVenuesPlacesJSON"></p>
+			</div>
+		</div>
+		
+		<div name="wolfram">
+			<h2><span>Wolfram Alpha</span></h2>
+			<p>
+				<a href="http://products.wolframalpha.com/api/documentation.html">API docs here</a></br>
+				<a href="http://products.wolframalpha.com/api/explorer.html">API Explorer</a></br>
+				2000requests/day</br>
+				linguistics usage</br></br>
+				<b>Authentication</b></br>
+					appid</br></br>
+			</p>
+		</div>
+		
+	</div>
+	
+	
+</body>
+
+<template name="user_info">
+	<ul class="nav pull-right">
+		{{#if currentUser}}
+			{{> user_loggedin}}
+		{{else}}
+			{{> user_loggedout}}
+		{{/if}}
+	</ul>
+</template>
+
+<template name="user_loggedin">
+	{{#if loggingIn}}
+		<li><a>Logging in...</a></li>
+	{{else}}
+		<li>
+			<img class="img-rounded" style="height:32px; margin-top:4px;" src="{{userPicture}}"/>
+		</li>
+		<li class="dropdown">
+			<a href="#" class="dropdown-toggle" data-toggle="dropdown">
+				{{currentUser.profile.name}}
+				<b class="caret"></b>
+			</a>
+		</li>
+	{{/if}}
+</template>
+
+<template name="user_loggedout">
+	<li><a id="login"></a></li>
+</template>
+
+<template name="wolfram">
+	<appname>TravelFavours</appname>
+	<appid>YJQEEQ-TGTRT7Y9Y5</appid>
+</template>
